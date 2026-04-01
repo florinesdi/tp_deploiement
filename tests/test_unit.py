@@ -1,3 +1,8 @@
+import sys
+import os
+
+sys.path.insert(0, os.getcwd())
+
 from app import app
 
 def test_health():
