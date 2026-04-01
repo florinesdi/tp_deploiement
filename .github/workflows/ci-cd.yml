@@ -13,22 +13,23 @@ env:
   CONTAINER_NAME: myapp
 
 jobs:
+
   unit-tests:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Installer Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Installer les dépendances
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Lancer les tests unitaires
-        run: pytest tests
+      - name: Run unit tests
+        run: PYTHONPATH=. python -m pytest tests
 
   e2e-tests:
     runs-on: ubuntu-latest
@@ -37,21 +38,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Installer Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Installer les dépendances
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Démarrer l'application
+      - name: Start app
         run: |
           python app.py &
           sleep 5
 
-      - name: Lancer les tests E2E
-        run: pytest e2e
+      - name: Run E2E tests
+        run: PYTHONPATH=. python -m pytest e2e
 
   build-push:
     runs-on: ubuntu-latest
@@ -60,17 +61,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Définir le tag
+      - name: Set tag
         id: vars
         run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Connexion à Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build et push de l'image
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -84,14 +85,14 @@ jobs:
     needs: build-push
 
     steps:
-      - name: Préparer la clé SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.AZURE_VM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.AZURE_VM_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Déployer sur la VM Azure
+      - name: Deploy to Azure VM
         run: |
           ssh ${{ secrets.AZURE_VM_USER }}@${{ secrets.AZURE_VM_HOST }} << EOF
             docker pull ${{ env.IMAGE_NAME }}:latest
@@ -103,5 +104,5 @@ jobs:
               ${{ env.IMAGE_NAME }}:latest
           EOF
 
-      - name: Vérification finale
+      - name: Healthcheck
         run: curl --fail http://${{ secrets.AZURE_VM_HOST }}:8080/health
